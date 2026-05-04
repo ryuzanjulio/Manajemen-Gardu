@@ -511,6 +511,32 @@ body{
   0%{opacity:0;}25%{opacity:1;}100%{opacity:0;}
 }
 
+/* ══ POPUP NOTIFIKASI ULP SALAH ═══════════════════════════════ */
+#popup-ulp-salah{
+  position:fixed;inset:0;z-index:99999;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.55);opacity:0;pointer-events:none;
+  transition:opacity .25s ease;
+}
+#popup-ulp-salah.show{opacity:1;pointer-events:all;}
+.popup-ulp-box{
+  background:#fff;border-radius:20px;padding:28px 24px 20px;
+  max-width:320px;width:90%;text-align:center;
+  transform:scale(.85);transition:transform .25s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 16px 48px rgba(0,0,0,.25);
+}
+#popup-ulp-salah.show .popup-ulp-box{transform:scale(1);}
+.popup-ulp-icon{font-size:48px;display:block;margin-bottom:8px;line-height:1;}
+.popup-ulp-title{font-size:17px;font-weight:800;color:#991B1B;margin-bottom:6px;}
+.popup-ulp-msg{font-size:13px;color:#555;line-height:1.5;margin-bottom:18px;}
+.popup-ulp-gardu{font-size:20px;font-weight:900;font-family:monospace;color:#003B7B;letter-spacing:1px;margin-bottom:4px;}
+.popup-ulp-ulp{font-size:13px;color:#991B1B;font-weight:700;margin-bottom:16px;}
+.popup-ulp-btn{
+  display:block;width:100%;padding:12px;border:none;border-radius:12px;
+  background:#003B7B;color:#fff;font-size:15px;font-weight:700;cursor:pointer;
+}
+.popup-ulp-btn:active{opacity:.85;}
+
 #scan-toast{
   position:fixed;top:50%;left:50%;
   transform:translate(-50%,-50%) scale(.6);
@@ -974,6 +1000,18 @@ body{
         </div>
       </div>
       <div class="scan-flash-overlay" id="scan-flash-overlay"></div>
+
+<!-- POPUP NOTIFIKASI ULP SALAH -->
+<div id="popup-ulp-salah">
+  <div class="popup-ulp-box">
+    <span class="popup-ulp-icon">🚫</span>
+    <div class="popup-ulp-title">Gardu Bukan Milik ULP Anda</div>
+    <div id="popup-ulp-nogardu" class="popup-ulp-gardu"></div>
+    <div id="popup-ulp-nama" class="popup-ulp-ulp"></div>
+    <div class="popup-ulp-msg">Gardu ini terdaftar di ULP lain.<br>Silakan scan barcode gardu milik ULP Anda.</div>
+    <button class="popup-ulp-btn" onclick="tutupPopupUlpSalah()">Mengerti, Tutup</button>
+  </div>
+</div>
     </div>
     <div class="scanner-status" id="scanner-status">Menginisialisasi kamera...</div>
     <div class="scanner-result-box" id="scanner-result-box">
@@ -3886,7 +3924,8 @@ function cariGarduDariScannerAuto(val) {
       var g = res.data;
       // Cek ULP — petugas & adminUlp hanya boleh lihat ULP sendiri
       if (s && s.role !== 'superadmin' && normalizeULP((g['ULP']||'').trim()) !== normalizeULP(ulpAkunToSheet(s.ulp))) {
-        document.getElementById('list-scan').innerHTML = '<div class="alert alert-err"><span class="alert-icon">🚫</span><span class="alert-text">Gardu ini bukan milik ULP Anda (<b>'+esc(g['ULP'])+'</b>).</span></div>';
+        document.getElementById('list-scan').innerHTML = '<div class="empty-state">🔍 Arahkan kamera ke barcode gardu Anda</div>';
+        tampilPopupUlpSalah(g['NO_GARDU'] || val, g['ULP'] || '');
         return;
       }
       if (!allGardu.find(function(x){ return x['NO_GARDU']===g['NO_GARDU']; })) allGardu.push(g);
@@ -3903,7 +3942,8 @@ function cariGarduDariScannerAuto(val) {
           garduList = garduList.filter(function(g){ return normalizeULP((g['ULP']||'').trim()) === normalizeULP(ulpAkunToSheet(s.ulp)); });
         }
         if (!garduList.length) {
-          document.getElementById('list-scan').innerHTML = '<div class="alert alert-err"><span class="alert-icon">🚫</span><span class="alert-text">Gardu tidak ditemukan di ULP Anda.</span></div>';
+          document.getElementById('list-scan').innerHTML = '<div class="empty-state">🔍 Arahkan kamera ke barcode gardu Anda</div>';
+          tampilPopupUlpSalah(val, '');
           return;
         }
         garduList.forEach(function(g){ if(!allGardu.find(function(x){return x['NO_GARDU']===g['NO_GARDU'];})) allGardu.push(g); });
@@ -3923,6 +3963,21 @@ function cariGarduDariScannerAuto(val) {
       });
     }
   });
+}
+
+function tampilPopupUlpSalah(noGardu, namaUlp) {
+  var pop = document.getElementById('popup-ulp-salah');
+  document.getElementById('popup-ulp-nogardu').textContent = noGardu || '';
+  document.getElementById('popup-ulp-nama').textContent = 'ULP: ' + (namaUlp || '-');
+  if (pop) { pop.classList.add('show'); }
+  // Hentikan kelap-kelip flash
+  var flash = document.getElementById('scan-flash-overlay');
+  if (flash) { flash.classList.remove('flash'); }
+}
+
+function tutupPopupUlpSalah() {
+  var pop = document.getElementById('popup-ulp-salah');
+  if (pop) { pop.classList.remove('show'); }
 }
 
 function updatePinDots() {
