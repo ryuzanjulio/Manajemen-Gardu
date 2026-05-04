@@ -1480,6 +1480,32 @@ function bukaMenuAdmin() {
     alert('Anda login sebagai Petugas. Akses ke menu admin tidak tersedia.');
     return;
   }
+  // Superadmin langsung masuk (tidak perlu PIN tambahan)
+  if (s.role === 'superadmin') {
+    _tampilkanPanelAdmin(s);
+    return;
+  }
+  // adminUlp — minta PIN dulu sebelum masuk panel
+  _tampilkanModalPinAdmin(s);
+}
+
+function _tampilkanModalPinAdmin(s) {
+  // Siapkan modal PIN admin
+  pinBuffer = '';
+  updatePinDots();
+  var errEl = document.getElementById('pin-error');
+  if (errEl) errEl.style.display = 'none';
+  // Ubah label modal PIN agar kontekstual
+  var pinTitle = document.querySelector('#modal-admin-pin h2');
+  if (pinTitle) pinTitle.textContent = '🔐 PIN Admin ULP';
+  var pinSub = document.querySelector('#modal-admin-pin p');
+  if (pinSub) pinSub.textContent = 'Masukkan PIN untuk mengakses menu admin ' + (s.ulp || '') + '.';
+  document.getElementById('modal-admin-pin').style.display = 'flex';
+  // Tandai bahwa PIN ini untuk buka panel (bukan untuk operasi lain)
+  document.getElementById('modal-admin-pin').setAttribute('data-mode', 'panel');
+}
+
+function _tampilkanPanelAdmin(s) {
   // Sembunyikan/tampilkan tombol sesuai role
   var btnTambah = document.querySelector('#admin-panel-actions .btn-blue');
   var btnEdit   = document.querySelectorAll('#admin-panel-actions .btn-outline')[0];
@@ -3867,8 +3893,9 @@ function submitTambahGardu() {
     msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
     msgEl.textContent='NO GARDU dan ULP wajib diisi.'; return;
   }
-  // Gunakan PIN admin hardcoded (auth sudah di client-side via session)
-  var pinToSend = ULP_PIN_MAP['ADMIN'];
+  // Kirim PIN sesuai ULP — adminUlp pakai PIN ULP, superadmin pakai PIN ADMIN
+  var ulpKeyForPin = (s && s.role === 'adminUlp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
+  var pinToSend = ULP_PIN_MAP[ulpKeyForPin] || ULP_PIN_MAP['ADMIN'];
   apiGet({
     action:'tambahGardu', pin:pinToSend, noGardu:noGardu, ulp:ulp,
     penyulang:(document.getElementById('f-penyulang').value||'').trim(),
@@ -3967,7 +3994,8 @@ function submitEditGardu() {
     'Perubahan ini akan tersimpan ke database.\nLanjutkan?';
   if (!confirm(konfirmasiMsg)) return;
 
-  var pinToSend = ULP_PIN_MAP['ADMIN'];
+  var ulpKeyForPin2 = (s && s.role === 'adminUlp' && s.ulp) ? String(s.ulp).trim().toUpperCase() : 'ADMIN';
+  var pinToSend = ULP_PIN_MAP[ulpKeyForPin2] || ULP_PIN_MAP['ADMIN'];
   apiGet({
     action:'editGardu', pin:pinToSend, noGarduLama:noLama,
     noGarduBaru:(document.getElementById('ef-nogardu-baru').value||'').trim().toUpperCase(),
@@ -4009,7 +4037,8 @@ function cariGarduDariScannerAuto(val) {
       // Cek ULP — petugas & adminUlp hanya boleh lihat ULP sendiri
       if (s && s.role !== 'superadmin' && normalizeULP((g['ULP']||'').trim()) !== normalizeULP(ulpAkunToSheet(s.ulp))) {
         document.getElementById('list-scan').innerHTML = '<div class="empty-state">🔍 Arahkan kamera ke barcode gardu Anda</div>';
-        tampilPopupUlpSalah(g['NO_GARDU'] || val, g['ULP'] || '');
+        // Tampilkan popup segera (tanpa delay) agar langsung terlihat
+        requestAnimationFrame(function(){ tampilPopupUlpSalah(g['NO_GARDU'] || val, g['ULP'] || ''); });
         return;
       }
       if (!allGardu.find(function(x){ return x['NO_GARDU']===g['NO_GARDU']; })) allGardu.push(g);
@@ -4027,7 +4056,7 @@ function cariGarduDariScannerAuto(val) {
         }
         if (!garduList.length) {
           document.getElementById('list-scan').innerHTML = '<div class="empty-state">🔍 Arahkan kamera ke barcode gardu Anda</div>';
-          tampilPopupUlpSalah(val, '');
+          requestAnimationFrame(function(){ tampilPopupUlpSalah(val, ''); });
           return;
         }
         garduList.forEach(function(g){ if(!allGardu.find(function(x){return x['NO_GARDU']===g['NO_GARDU'];})) allGardu.push(g); });
@@ -4064,6 +4093,45 @@ function tutupPopupUlpSalah() {
   if (pop) { pop.classList.remove('show'); }
 }
 
+// ══ PWA Install Banner ═══════════════════════════════════════
+var _pwaInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _pwaInstallPrompt = e;
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'flex';
+});
+
+window.addEventListener('appinstalled', function() {
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'none';
+  _pwaInstallPrompt = null;
+});
+
+function installPWA() {
+  if (!_pwaInstallPrompt) {
+    alert('Aplikasi sudah terinstall atau browser Anda tidak mendukung instalasi PWA.');
+    return;
+  }
+  _pwaInstallPrompt.prompt();
+  _pwaInstallPrompt.userChoice.then(function(result) {
+    if (result.outcome === 'accepted') {
+      var banner = document.getElementById('pwa-install-banner');
+      if (banner) banner.style.display = 'none';
+    }
+    _pwaInstallPrompt = null;
+  });
+}
+
+function tutupBannerInstall() {
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'none';
+  // Simpan preferensi agar banner tidak muncul lagi di sesi ini
+  sessionStorage.setItem('pwa_banner_dismissed', '1');
+}
+// ══════════════════════════════════════════════════════════════
+
 function updatePinDots() {
   var dots = document.querySelectorAll('#pin-dots .pin-dot');
   dots.forEach(function(d, i){ d.classList.toggle('filled', i < pinBuffer.length); });
@@ -4085,7 +4153,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function cekPinLogin() {
   var errEl = document.getElementById('pin-error');
-  // Cek apakah PIN cocok dengan admin
+  var s = getSession();
+  var mode = document.getElementById('modal-admin-pin').getAttribute('data-mode') || 'panel';
+
+  // Mode 'panel': PIN digunakan untuk membuka menu admin (adminUlp)
+  if (mode === 'panel' && s && s.role === 'adminUlp') {
+    var ulpKey = String(s.ulp||'').trim().toUpperCase();
+    var pinBenar = ULP_PIN_MAP[ulpKey] || ULP_PIN_MAP['ADMIN'];
+    if (pinBuffer === pinBenar || pinBuffer === ULP_PIN_MAP['ADMIN']) {
+      tutupModalAdmin();
+      _tampilkanPanelAdmin(s);
+      return;
+    }
+    // PIN salah
+    if (errEl) { errEl.style.display='block'; errEl.textContent='PIN salah. Coba lagi.'; }
+    pinBuffer = '';
+    updatePinDots();
+    setTimeout(function(){ if(errEl) errEl.style.display='none'; }, 2000);
+    return;
+  }
+
+  // Mode lama (fallback) — cek PIN admin atau PIN ULP
   if (pinBuffer === ULP_PIN_MAP['ADMIN']) {
     adminSudahLogin = true;
     currentULP = '';
@@ -4093,13 +4181,11 @@ function cekPinLogin() {
     document.getElementById('btn-admin-lock').style.color = 'var(--pln-kuning)';
     document.getElementById('btn-admin-lock').title = 'Admin Aktif';
     document.getElementById('modal-admin-panel').style.display = 'flex';
-    // Reset filter
     activeFilterULP = '';
     document.querySelectorAll('#filter-ulp-row .tag').forEach(function(t){ t.classList.toggle('active', t.textContent.trim()==='Semua'); });
     applyDaftarFilter();
     return;
   }
-  // Cek apakah PIN cocok dengan salah satu ULP
   var matchedULP = null;
   Object.keys(ULP_PIN_MAP).forEach(function(ulp) {
     if (ulp !== 'ADMIN' && pinBuffer === ULP_PIN_MAP[ulp]) matchedULP = ulp;
@@ -4110,7 +4196,6 @@ function cekPinLogin() {
     tutupModalAdmin();
     document.getElementById('btn-admin-lock').style.color = '#FCD34D';
     document.getElementById('btn-admin-lock').title = 'Login: '+matchedULP;
-    // Otomatis filter ke ULP ini
     setFilterULP(matchedULP);
     alert('✅ Login berhasil sebagai: '+matchedULP);
     return;
@@ -4174,8 +4259,10 @@ function mulaiKamera() {
       var toast = document.getElementById('scan-toast');
       var toastId = document.getElementById('toast-gardu-id');
       if (toast && toastId){toastId.textContent=decoded.toUpperCase();toast.classList.add('show');setTimeout(function(){toast.classList.remove('show');},2000);}
-      // [v32+] Langsung buka detail gardu tanpa konfirmasi
-      setTimeout(function(){ tutupScanner(); cariGarduDariScannerAuto(decoded.trim().toUpperCase()); }, 400);
+      // Langsung proses hasil scan — tutup scanner dulu, lalu buka detail
+      var scannedVal = decoded.trim().toUpperCase();
+      tutupScanner();
+      setTimeout(function(){ cariGarduDariScannerAuto(scannedVal); }, 300);
     },
     function(){}
   ).then(function(){
