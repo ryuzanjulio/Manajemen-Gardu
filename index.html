@@ -701,6 +701,22 @@ body{
 .tren-chart-legend{display:flex;gap:var(--sp-sm);padding:var(--sp-sm) var(--sp-md);flex-wrap:wrap;}
 .tren-legend-item{display:flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--pln-text2);}
 .tren-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.tren-filter-bar{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:var(--sp-xs) var(--sp-sm);
+  margin-bottom:4px;
+}
+.tren-filter-btn{
+  background:var(--pln-card);border:1px solid var(--pln-border);
+  border-radius:20px;padding:3px 12px;
+  font-size:var(--fs-xs);font-weight:600;color:var(--pln-text2);
+  cursor:pointer;transition:all .15s;font-family:inherit;
+}
+.tren-filter-btn:active{transform:scale(.95);}
+.tren-filter-btn.active{
+  background:var(--pln-biru2);border-color:var(--pln-biru2);
+  color:#fff;
+}
 
 /* ══ IMBALANCE ALERT ═════════════════════════════════════════ */
 .imbalance-alert{
@@ -1404,6 +1420,11 @@ function onLoginSuccess(user) {
   // Muat data aplikasi — pass ULP eksplisit agar tidak ada race condition
   var ulpUntukFilter = (user.role !== 'superadmin' && user.ulp) ? user.ulp : '';
   muatDaftarGardu(true, ulpUntukFilter);
+
+  // Reset rekap agar tidak tampil data ULP sebelumnya saat ganti login
+  rekapSudahMuat = false;
+  var rekapEl = document.getElementById('rekap-content');
+  if (rekapEl) rekapEl.innerHTML = '<div class="loading"><div class="spinner"></div>Memuat rekap...</div>';
 }
 
 // Normalisasi string ULP untuk perbandingan yang toleran
@@ -1595,27 +1616,25 @@ function hapusUser(idx) {
 //  KONFIGURASI & STATE
 // ══════════════════════════════════════════════════════════════
 var API_URL = 'https://script.google.com/macros/s/AKfycbyvIfrMDc7jKHa8zEAlN7_SHWo8zmM4BiQXWVgdY5OJQdbtvhGSNLVrbDLO8pu5yPmu/exec';
+
+// ══ URL SPREADSHEET — Ganti di sini jika spreadsheet berubah ══
+// Cukup ganti 1 baris ini, tidak perlu cari-cari di seluruh kode
+var SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1slCbbAfkdZdIiPbJqyaq9gcPNKPd6Zu10PMNI2I-K_o/edit';
 var allGardu = [], filteredDaftar = [], html5QrCode = null, scannerAktif = false;
 var tabSebelumDetail = 0, rekapSudahMuat = false, adminSudahLogin = false, pinBuffer = '', currentTab = 0;
 
-// ══ TEMPLATE PIN PER ULP ══════════════════════════════════════
-// PETUNJUK PENGISIAN:
-//   1. Ganti nilai '0000' di bawah ini dengan PIN 4 digit masing-masing ULP.
-//   2. PIN ADMIN (baris ADMIN) membuka seluruh fitur tambah/edit gardu.
-//   3. PIN ULP hanya memfilter tampilan gardu sesuai ULP yang login.
-//   4. Nama ULP di sini HARUS sama persis dengan kolom ULP di sheet GARDU.
-//   5. Jangan bagikan file ini ke umum setelah diisi PIN asli.
-// CATATAN: PIN disimpan di client (tidak dikirim ke server), aman dari petugas lain.
+// ══ PIN ADMIN — Digunakan untuk otorisasi tambah/edit gardu ke server ══
+// PIN ini BERBEDA dari password login user. PIN ini dikirim ke Apps Script.
+// Ganti nilai di bawah dengan PIN rahasia yang sama dengan di Apps Script Anda.
+// CATATAN: Fitur login per-ULP kini menggunakan sistem username/password (bukan PIN).
+//          ULP_PIN_MAP di bawah hanya digunakan untuk otorisasi tambah/edit gardu ke server.
 var ULP_PIN_MAP = {
-  'ADMIN':          '0000',   // ← PIN admin (ganti dengan PIN rahasia Anda)
-  // ── Isi PIN per ULP di bawah ini ──────────────────────────
-  // Konfirmasi nama ULP yang sesuai dengan data sheet, lalu isi PIN:
-  'ULP ABEPURA':    '0000',   // ← ganti dengan PIN ULP Abepura
-  'ULP JAYAPURA':   '0000',   // ← ganti dengan PIN ULP Jayapura
-  'ULP SENTANI':    '0000',   // ← ganti dengan PIN ULP Sentani
-  'ULP WAENA':      '0000',   // ← ganti dengan PIN ULP Waena
-  // Tambahkan ULP lain sesuai kebutuhan dengan format:
-  // 'NAMA ULP':   'XXXX',
+  'ADMIN':          '1234',   // ← WAJIB diganti: PIN admin untuk tambah/edit gardu
+  // ── PIN per ULP (opsional, jika Apps Script Anda membutuhkannya) ──
+  'ULP ABEPURA':    '1111',   // ← ganti sesuai kebutuhan
+  'ULP JAYAPURA':   '2222',   // ← ganti sesuai kebutuhan
+  'ULP SENTANI':    '3333',   // ← ganti sesuai kebutuhan
+  'ULP WAENA':      '4444',   // ← ganti sesuai kebutuhan
 };
 var currentULP = '';  // '' = semua ULP (admin atau belum login)
 
@@ -2205,12 +2224,19 @@ function renderDetailGardu(g, riwayat){
     });
 
     html += '<div style="margin-top:var(--sp-sm);">';
-    html += '<button onclick="window.open(\'https://docs.google.com/spreadsheets/d/1slCbbAfkdZdIiPbJqyaq9gcPNKPd6Zu10PMNI2I-K_o/edit\',\'_blank\',\'noopener\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:clamp(10px,3vw,13px);background:var(--pln-bg);border:1.5px solid var(--pln-border);border-radius:var(--radius-sm);font-size:var(--fs-xs);color:var(--pln-biru2);font-weight:700;cursor:pointer;">📊 Lihat di Spreadsheet →</button>';
+    html += '<button onclick="window.open(SPREADSHEET_URL,\'_blank\',\'noopener\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:clamp(10px,3vw,13px);background:var(--pln-bg);border:1.5px solid var(--pln-border);border-radius:var(--radius-sm);font-size:var(--fs-xs);color:var(--pln-biru2);font-weight:700;cursor:pointer;">📊 Lihat di Spreadsheet →</button>';
     html += '</div>';
   }
 
   // ── Tren Beban Section (will be populated asynchronously) ──
   html += '<div class="sec">📈 Tren Beban Historis</div>';
+  html += '<div class="tren-filter-bar" id="tren-filter-bar">';
+  html += '<span style="font-size:var(--fs-xs);color:var(--pln-text3);font-weight:600;">Tampilkan:</span>';
+  html += '<button class="tren-filter-btn active" onclick="setTrenFilter(5,this)">5 Data</button>';
+  html += '<button class="tren-filter-btn" onclick="setTrenFilter(10,this)">10 Data</button>';
+  html += '<button class="tren-filter-btn" onclick="setTrenFilter(20,this)">20 Data</button>';
+  html += '<button class="tren-filter-btn" onclick="setTrenFilter(0,this)">Semua</button>';
+  html += '</div>';
   html += '<div class="tren-chart-wrap" id="tren-beban-wrap">';
   html += '<div class="loading" style="padding:var(--sp-md);"><div class="spinner"></div>Memuat tren beban...</div>';
   html += '</div>';
@@ -2219,6 +2245,9 @@ function renderDetailGardu(g, riwayat){
   document.getElementById('detail-content').innerHTML = html;
   document.getElementById('detail-view-title').textContent = g['NO_GARDU'] || '—';
 
+  // Reset filter tren beban ke default (5 data) saat buka gardu baru
+  _trenLimit = 5;
+  _trenAllData = [];
   // Load tren beban async after DOM ready
   muatTrenBeban(g['NO_GARDU']);
 }
@@ -2255,9 +2284,21 @@ function muatTrenBeban(noGardu) {
   });
 }
 
+var _trenAllData = [];
+var _trenLimit = 5;
+
+function setTrenFilter(limit, btn) {
+  _trenLimit = limit;
+  document.querySelectorAll('.tren-filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  var wrap = document.getElementById('tren-beban-wrap');
+  if (wrap && _trenAllData.length) renderTrenBeban(_trenAllData, wrap);
+}
+
 function renderTrenBeban(data, wrap) {
-  // Ambil max 5 titik terakhir (sesuai ketentuan tampilan)
-  var pts = data.slice(-5);
+  _trenAllData = data;
+  // Ambil data sesuai filter: 0 = semua, N = N terakhir
+  var pts = _trenLimit > 0 ? data.slice(-_trenLimit) : data.slice();
   var prosenArr = pts.map(function(p){ return p.prosen; });
   var maxP = Math.max.apply(null, prosenArr.concat([100]));
   var minP = 0;
@@ -2360,7 +2401,8 @@ function renderTrenBeban(data, wrap) {
 
   var html = '';
   html += '<div class="tren-chart-header">';
-  html += '<span class="tren-chart-title">📈 Tren Beban Trafo (5 Ukur Terakhir)</span>';
+  var trenTitleLabel = _trenLimit > 0 ? _trenLimit+' Ukur Terakhir' : 'Semua Data ('+n+' ukur)';
+  html += '<span class="tren-chart-title">📈 Tren Beban Trafo ('+trenTitleLabel+')</span>';
   html += '<span class="tren-chart-badge" style="'+badgeClass+'">'+latestP.toFixed(1)+'% · '+trendLabel+'</span>';
   html += '</div>';
   html += '<div class="tren-chart-svg-wrap">'+svgStr+'</div>';
@@ -2542,8 +2584,14 @@ function doExport() {
   var periode = getPeriodeFilter();
   var ulpFilter = document.getElementById('export-ulp-filter').value || '';
   document.getElementById('export-loading').style.display = 'block';
-  // Selalu minta semua data dari server, filter di client
-  apiGet({ action: 'getExportRekap', bulan: '' }, function(res) {
+  // Kirim parameter ULP ke server untuk non-superadmin (hemat bandwidth & cegah kebocoran data)
+  var s = getSession();
+  var exportParams = { action: 'getExportRekap', bulan: '' };
+  if (s && s.role !== 'superadmin' && s.ulp) {
+    var sheetVal = ulpAkunToSheet(s.ulp);
+    if (sheetVal) exportParams.ulp = sheetVal;
+  }
+  apiGet(exportParams, function(res) {
     document.getElementById('export-loading').style.display = 'none';
     if (res.status !== 'ok' || !res.data) { alert('Gagal memuat data: '+(res.message||'')); return; }
 
@@ -3574,7 +3622,7 @@ function renderRekap(d) {
     });
     html += '</div>';
     // Link ke spreadsheet lengkap
-    html += '<a href="https://docs.google.com/spreadsheets/d/1slCbbAfkdZdIiPbJqyaq9gcPNKPd6Zu10PMNI2I-K_o/edit" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:var(--sp-xs);padding:clamp(10px,3vw,13px);background:var(--pln-bg);border:1.5px solid var(--pln-border);border-radius:var(--radius-sm);font-size:var(--fs-xs);color:var(--pln-biru2);font-weight:700;text-decoration:none;">📊 Lihat semua riwayat di Spreadsheet →</a>';
+    html += '<a href="'+SPREADSHEET_URL+'" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:var(--sp-xs);padding:clamp(10px,3vw,13px);background:var(--pln-bg);border:1.5px solid var(--pln-border);border-radius:var(--radius-sm);font-size:var(--fs-xs);color:var(--pln-biru2);font-weight:700;text-decoration:none;">📊 Lihat semua riwayat di Spreadsheet →</a>';
   }
 
   // ── Section: Gardu Kritis ──────────────────────────────────
@@ -3593,11 +3641,24 @@ var _bebanPage = 1, _overduePage = 1;
 var KRITIS_PAGE_SIZE = 20;
 
 function muatGarduKritis() {
-  apiGet({ action: 'getGarduKritis' }, function(res) {
+  var s = getSession();
+  var params = { action: 'getGarduKritis' };
+  if (s && s.role !== 'superadmin' && s.ulp) {
+    var sheetVal = ulpAkunToSheet(s.ulp);
+    if (sheetVal) params.ulp = sheetVal;
+  }
+  apiGet(params, function(res) {
     if (res.status !== 'ok') return;
     var el = document.getElementById('gardu-kritis-content');
     if (!el) return;
-    _kritisData = res.data;
+    var d = res.data;
+    // Filter sisi klien sebagai pengaman tambahan
+    if (s && s.role !== 'superadmin' && s.ulp) {
+      var ulpSheet = normalizeULP(ulpAkunToSheet(s.ulp));
+      if (d.bebanLebih) d.bebanLebih = d.bebanLebih.filter(function(g){ return normalizeULP(g.ulp||'') === ulpSheet; });
+      if (d.overdue)    d.overdue    = d.overdue.filter(function(g){    return normalizeULP(g.ulp||'') === ulpSheet; });
+    }
+    _kritisData = d;
     _bebanPage = 1; _overduePage = 1;
     renderGarduKritisContent();
   });
@@ -3882,6 +3943,15 @@ function submitEditGardu() {
     msgEl.style.display='block'; msgEl.style.background='#FEE2E2'; msgEl.style.color='#991B1B';
     msgEl.textContent='Anda tidak bisa mengubah ULP gardu ke ULP lain.'; return;
   }
+
+  // ── Konfirmasi sebelum simpan ──
+  var noBaruVal = (document.getElementById('ef-nogardu-baru').value||'').trim().toUpperCase();
+  var konfirmasiMsg = '⚠️ Konfirmasi Perubahan Data Gardu\n\n' +
+    'Gardu  : ' + noLama + (noBaruVal && noBaruVal !== noLama ? ' → ' + noBaruVal : '') + '\n' +
+    'ULP    : ' + ulpVal + '\n' +
+    'Status : ' + (document.getElementById('ef-status').value||'AKTIF') + '\n\n' +
+    'Perubahan ini akan tersimpan ke database.\nLanjutkan?';
+  if (!confirm(konfirmasiMsg)) return;
 
   var pinToSend = ULP_PIN_MAP['ADMIN'];
   apiGet({
