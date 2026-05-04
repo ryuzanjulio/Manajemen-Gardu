@@ -1049,9 +1049,9 @@ body{
 <div id="modal-admin-pin" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
   <div style="background:var(--pln-card);border-radius:var(--radius);padding:var(--sp-lg);width:100%;max-width:340px;box-shadow:var(--shadow-lg);">
     <div style="text-align:center;margin-bottom:var(--sp-md);">
-      <div style="font-size:36px;">🔐</div>
-      <div style="font-size:var(--fs-md);font-weight:700;">Mode Admin</div>
-      <div style="font-size:var(--fs-xs);color:var(--pln-text3);">Masukkan PIN 4 digit</div>
+      <div id="pin-modal-icon" style="font-size:36px;">🔐</div>
+      <div id="pin-modal-title" style="font-size:var(--fs-md);font-weight:700;">Mode Admin</div>
+      <div id="pin-modal-sub" style="font-size:var(--fs-xs);color:var(--pln-text3);">Masukkan PIN 4 digit</div>
     </div>
     <div style="display:flex;gap:8px;justify-content:center;margin-bottom:var(--sp-md);" id="pin-dots">
       <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
@@ -1490,19 +1490,22 @@ function bukaMenuAdmin() {
 }
 
 function _tampilkanModalPinAdmin(s) {
-  // Siapkan modal PIN admin
+  // Reset PIN
   pinBuffer = '';
   updatePinDots();
   var errEl = document.getElementById('pin-error');
   if (errEl) errEl.style.display = 'none';
-  // Ubah label modal PIN agar kontekstual
-  var pinTitle = document.querySelector('#modal-admin-pin h2');
-  if (pinTitle) pinTitle.textContent = '🔐 PIN Admin ULP';
-  var pinSub = document.querySelector('#modal-admin-pin p');
-  if (pinSub) pinSub.textContent = 'Masukkan PIN untuk mengakses menu admin ' + (s.ulp || '') + '.';
-  document.getElementById('modal-admin-pin').style.display = 'flex';
-  // Tandai bahwa PIN ini untuk buka panel (bukan untuk operasi lain)
+  // Update teks modal sesuai ULP
+  var pinTitle = document.getElementById('pin-modal-title');
+  var pinSub   = document.getElementById('pin-modal-sub');
+  var pinIcon  = document.getElementById('pin-modal-icon');
+  if (pinIcon)  pinIcon.textContent  = '🔐';
+  if (pinTitle) pinTitle.textContent = 'PIN Admin ULP';
+  if (pinSub)   pinSub.textContent   = 'Masukkan PIN untuk ' + (s.ulp || 'ULP Anda');
+  // Tandai mode panel
   document.getElementById('modal-admin-pin').setAttribute('data-mode', 'panel');
+  // Tampilkan modal
+  document.getElementById('modal-admin-pin').style.display = 'flex';
 }
 
 function _tampilkanPanelAdmin(s) {
@@ -4037,8 +4040,12 @@ function cariGarduDariScannerAuto(val) {
       // Cek ULP — petugas & adminUlp hanya boleh lihat ULP sendiri
       if (s && s.role !== 'superadmin' && normalizeULP((g['ULP']||'').trim()) !== normalizeULP(ulpAkunToSheet(s.ulp))) {
         document.getElementById('list-scan').innerHTML = '<div class="empty-state">🔍 Arahkan kamera ke barcode gardu Anda</div>';
-        // Tampilkan popup segera (tanpa delay) agar langsung terlihat
-        requestAnimationFrame(function(){ tampilPopupUlpSalah(g['NO_GARDU'] || val, g['ULP'] || ''); });
+        // Double rAF: tunggu tab selesai render BARU tampilkan popup
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            tampilPopupUlpSalah(g['NO_GARDU'] || val, g['ULP'] || '');
+          });
+        });
         return;
       }
       if (!allGardu.find(function(x){ return x['NO_GARDU']===g['NO_GARDU']; })) allGardu.push(g);
@@ -4056,7 +4063,11 @@ function cariGarduDariScannerAuto(val) {
         }
         if (!garduList.length) {
           document.getElementById('list-scan').innerHTML = '<div class="empty-state">🔍 Arahkan kamera ke barcode gardu Anda</div>';
-          requestAnimationFrame(function(){ tampilPopupUlpSalah(val, ''); });
+          requestAnimationFrame(function(){
+            requestAnimationFrame(function(){
+              tampilPopupUlpSalah(val, '');
+            });
+          });
           return;
         }
         garduList.forEach(function(g){ if(!allGardu.find(function(x){return x['NO_GARDU']===g['NO_GARDU'];})) allGardu.push(g); });
@@ -4099,8 +4110,20 @@ var _pwaInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   _pwaInstallPrompt = e;
+  // Jangan tampilkan jika sudah pernah di-dismiss di sesi ini
+  if (sessionStorage.getItem('pwa_banner_dismissed') === '1') return;
   var banner = document.getElementById('pwa-install-banner');
   if (banner) banner.style.display = 'flex';
+});
+
+// Cek saat load: jika sudah running sebagai PWA (standalone), sembunyikan banner
+window.addEventListener('load', function() {
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  if (isStandalone) {
+    var banner = document.getElementById('pwa-install-banner');
+    if (banner) banner.style.display = 'none';
+  }
 });
 
 window.addEventListener('appinstalled', function() {
