@@ -1252,12 +1252,15 @@ var DEFAULT_USERS = [
 // prefix = awalan NO_GARDU yang dipakai ULP ini (untuk deteksi otomatis jika diperlukan)
 // Tambah/ubah sesuai data aktual di spreadsheet kamu.
 var ULP_SHEET_MAP = {
+  // ══ DAFTAR ULP — sesuaikan jika nama di spreadsheet berubah ══
+  // Format: 'NAMA ULP DI LOGIN': { sheet: 'NAMA DI KOLOM ULP SPREADSHEET', prefix: ['AWALAN NO GARDU'] }
   'ULP ABEPURA':  { sheet: 'ABEPURA',  prefix: ['ABE'] },
   'ULP JAYAPURA': { sheet: 'JAYAPURA', prefix: ['JPR', 'JYP'] },
   'ULP SENTANI':  { sheet: 'SENTANI',  prefix: ['SEN', 'STN'] },
-  'ULP WAENA':    { sheet: 'WAENA',    prefix: ['WAE', 'WNA'] },
-  // Tambah ULP lain di sini jika ada:
-  // 'ULP ABEPURA': { sheet: 'ABEPURA', prefix: ['ABE'] },
+  'ULP SARMI':    { sheet: 'SARMI',    prefix: ['SRM'] },
+  'ULP ARSO':     { sheet: 'ARSO',     prefix: ['ARS'] },
+  'ULP GENYEM':   { sheet: 'GENYEM',   prefix: ['GNY', 'GEN'] },
+  // Tambah ULP baru di sini dengan format yang sama
 };
 
 // Kembalikan nilai kolom sheet dari nama ULP akun
@@ -1615,7 +1618,7 @@ function hapusUser(idx) {
 // ══════════════════════════════════════════════════════════════
 //  KONFIGURASI & STATE
 // ══════════════════════════════════════════════════════════════
-var API_URL = 'https://script.google.com/macros/s/AKfycbyvIfrMDc7jKHa8zEAlN7_SHWo8zmM4BiQXWVgdY5OJQdbtvhGSNLVrbDLO8pu5yPmu/exec';
+var API_URL = 'https://script.google.com/macros/s/AKfycbzcRdpIm7OhcOK46vuuUVTIr7AFdNSfKJmFevZiZh7b7585l4pTltYlSLr9s4DxsC5n/exec';
 
 // ══ URL SPREADSHEET — Ganti di sini jika spreadsheet berubah ══
 // Cukup ganti 1 baris ini, tidak perlu cari-cari di seluruh kode
@@ -1629,12 +1632,23 @@ var tabSebelumDetail = 0, rekapSudahMuat = false, adminSudahLogin = false, pinBu
 // CATATAN: Fitur login per-ULP kini menggunakan sistem username/password (bukan PIN).
 //          ULP_PIN_MAP di bawah hanya digunakan untuk otorisasi tambah/edit gardu ke server.
 var ULP_PIN_MAP = {
-  'ADMIN':          '1234',   // ← WAJIB diganti: PIN admin untuk tambah/edit gardu
-  // ── PIN per ULP (opsional, jika Apps Script Anda membutuhkannya) ──
-  'ULP ABEPURA':    '1111',   // ← ganti sesuai kebutuhan
-  'ULP JAYAPURA':   '2222',   // ← ganti sesuai kebutuhan
-  'ULP SENTANI':    '3333',   // ← ganti sesuai kebutuhan
-  'ULP WAENA':      '4444',   // ← ganti sesuai kebutuhan
+  // ══ PIN OTORISASI TAMBAH/EDIT GARDU ══════════════════════════
+  // PIN ini dikirim ke Apps Script saat tambah/edit gardu.
+  // HARUS sama persis dengan yang ada di Apps Script (ADMIN_PIN & ULP_PIN_SERVER).
+  //
+  // CARA GANTI PIN (lihat panduan lengkap di bawah):
+  // 1. Ganti nilai PIN di sini
+  // 2. Ganti nilai yang sama di Apps Script
+  // 3. Upload ulang index.html ke GitHub
+  // 4. Deploy ulang Apps Script
+  // ════════════════════════════════════════════════════════════
+  'ADMIN':          '1234',   // PIN superadmin — bisa tambah/edit semua ULP
+  'ULP ABEPURA':    '1111',   // PIN khusus ULP Abepura
+  'ULP JAYAPURA':   '2222',   // PIN khusus ULP Jayapura
+  'ULP SENTANI':    '3333',   // PIN khusus ULP Sentani
+  'ULP SARMI':      '4444',   // PIN khusus ULP Sarmi
+  'ULP ARSO':       '5555',   // PIN khusus ULP Arso
+  'ULP GENYEM':     '6666',   // PIN khusus ULP Genyem
 };
 var currentULP = '';  // '' = semua ULP (admin atau belum login)
 
