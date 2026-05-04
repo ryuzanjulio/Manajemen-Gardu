@@ -1,0 +1,51 @@
+{
+  "name": "Monitoring Gardu PLN UP3 Jayapura",
+  "short_name": "Gardu PLN",
+  "description": "Monitoring dan inspeksi gardu distribusi PLN UP3 Jayapura",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#003B7B",
+  "theme_color": "#003B7B",
+  "lang": "id",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan QR Gardu",
+      "short_name": "Scan QR",
+      "url": "/index.html",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Input Inspeksi",
+      "short_name": "Inspeksi",
+      "url": "/index.html",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "version": "8.0"
+}
