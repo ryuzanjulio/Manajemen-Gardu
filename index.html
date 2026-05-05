@@ -4239,14 +4239,48 @@ function bukaScanner() {
   setTimeout(mulaiKamera, 400);
 }
 
+// ══ FLAG GUARD — mencegah scan callback dipanggil lebih dari 1x ══
+var _scanProcessing = false;
+
 function tutupScanner() {
   document.getElementById('scanner-modal').classList.remove('open');
-  hentikanKamera();
-  // [Fix Scan] Reset instance agar kamera bisa diinisialisasi ulang saat buka berikutnya
+  _resetScanner();
+}
+
+// Reset semua state scanner dengan aman (tanpa callback)
+function _resetScanner() {
+  scannerAktif = false;
+  _scanProcessing = false;
   if (html5QrCode) {
-    try { html5QrCode.clear(); } catch(e){}
+    var qr = html5QrCode;
     html5QrCode = null;
+    try {
+      qr.stop()
+        .catch(function(){})
+        .finally(function(){
+          try { qr.clear(); } catch(e){}
+        });
+    } catch(e) {
+      try { qr.clear(); } catch(e2){}
+    }
   }
+}
+
+// Hentikan kamera & jalankan callback setelah benar-benar berhenti
+function _hentikanLaluJalankan(callback) {
+  scannerAktif = false;
+  if (!html5QrCode) { callback(); return; }
+  var qr = html5QrCode;
+  html5QrCode = null;
+  var done = false;
+  function selesai() {
+    if (done) return; done = true;
+    try { qr.clear(); } catch(e){}
+    callback();
+  }
+  try {
+    qr.stop().then(selesai).catch(selesai);
+  } catch(e) { selesai(); }
 }
 
 function setStatus(msg, cls) {
@@ -4257,18 +4291,32 @@ function setStatus(msg, cls) {
 }
 
 function mulaiKamera() {
-  if (scannerAktif) return;
-  if (!html5QrCode) html5QrCode = new Html5Qrcode('qr-reader');
+  if (scannerAktif || _scanProcessing) return;
+  if (!html5QrCode) {
+    try { html5QrCode = new Html5Qrcode('qr-reader'); }
+    catch(e) { setStatus('Gagal inisialisasi kamera.','err'); return; }
+  }
   var cfg = {
-    fps: 15,
+    fps: 10,
     qrbox: function(w,h){var s=Math.min(w,h)*.7;return{width:Math.round(s),height:Math.round(s)};},
     aspectRatio: 1.0,
-    formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39, Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8],
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8
+    ],
     supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
   };
   html5QrCode.start({facingMode:'environment'}, cfg,
     function(decoded) {
-      scannerAktif = false; hentikanKamera();
+      // GUARD: abaikan jika sudah diproses atau scanner sudah tidak aktif
+      if (_scanProcessing) return;
+      _scanProcessing = true;
+      scannerAktif = false;
+
+      // Tampilkan UI feedback
       var box = document.getElementById('scanner-result-box');
       if (box) {
         box.style.display = 'block';
@@ -4281,39 +4329,40 @@ function mulaiKamera() {
       if (flash){flash.classList.remove('flash');void flash.offsetWidth;flash.classList.add('flash');}
       var toast = document.getElementById('scan-toast');
       var toastId = document.getElementById('toast-gardu-id');
-      if (toast && toastId){toastId.textContent=decoded.toUpperCase();toast.classList.add('show');setTimeout(function(){toast.classList.remove('show');},2000);}
-      // Langsung proses hasil scan — tutup scanner dulu, lalu buka detail
+      if (toast && toastId){
+        toastId.textContent = decoded.toUpperCase();
+        toast.classList.add('show');
+        setTimeout(function(){toast.classList.remove('show');}, 2000);
+      }
+
+      // Simpan nilai scan, tutup modal, BARU proses — setelah kamera benar-benar berhenti
       var scannedVal = decoded.trim().toUpperCase();
-      tutupScanner();
-      setTimeout(function(){ cariGarduDariScannerAuto(scannedVal); }, 300);
+      document.getElementById('scanner-modal').classList.remove('open');
+      _hentikanLaluJalankan(function() {
+        _scanProcessing = false;
+        cariGarduDariScannerAuto(scannedVal);
+      });
     },
-    function(){}
+    function(){} // error frame — abaikan
   ).then(function(){
-    scannerAktif = true; setStatus('Arahkan kamera ke barcode / QR code','');
+    scannerAktif = true;
+    setStatus('Arahkan kamera ke barcode / QR code','');
   }).catch(function(err){
     scannerAktif = false;
+    _scanProcessing = false;
+    html5QrCode = null;
     var msg = String(err||'');
-    if(msg.indexOf('Permission')>-1||msg.indexOf('NotAllowed')>-1) setStatus('Izin kamera ditolak. Aktifkan di pengaturan browser.','err');
-    else if(msg.indexOf('NotFound')>-1) setStatus('Kamera tidak ditemukan.','err');
-    else setStatus('Kamera tidak bisa diakses. Gunakan input manual.','err');
+    if(msg.indexOf('Permission')>-1||msg.indexOf('NotAllowed')>-1)
+      setStatus('Izin kamera ditolak. Aktifkan di pengaturan browser.','err');
+    else if(msg.indexOf('NotFound')>-1)
+      setStatus('Kamera tidak ditemukan.','err');
+    else
+      setStatus('Kamera tidak bisa diakses. Gunakan input manual.','err');
   });
 }
 
-function hentikanKamera() {
-  if (html5QrCode && scannerAktif) {
-    html5QrCode.stop()
-      .then(function(){
-        scannerAktif = false;
-        // [Fix Scan] Null-kan setelah stop agar bisa dibuat ulang
-        try { html5QrCode.clear(); } catch(e){}
-        html5QrCode = null;
-      })
-      .catch(function(){
-        scannerAktif = false;
-        html5QrCode = null;
-      });
-  }
-}
+// Alias untuk kompatibilitas
+function hentikanKamera() { _resetScanner(); }
 
 function cariGarduDariScanner() {
   var val = (document.getElementById('scanner-manual').value||'').trim().toUpperCase();
